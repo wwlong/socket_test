@@ -26,11 +26,13 @@
 int main()
 {
     int sock_fd;
+    int sock_fd_recv;
     struct sockaddr_in servaddr, recvfrom_addr;
     char *message = "message from client";
     char buffer[1024];
     int buffer_len = 1024;
     int length, recv_len;
+    int flags = 0;
     //socket
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sock_fd < 0) {
@@ -48,10 +50,8 @@ int main()
     int ret;
     FD_ZERO(&write_set);
     FD_SET(sock_fd, &write_set);
-    FD_ZERO(&read_set);
-    FD_SET(sock_fd, &read_set);
-
     while(1) {
+#if 1
         //send message
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
@@ -73,14 +73,22 @@ int main()
                     else {
                         printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
                     }
+                }
+                else {
+                    //send success
                 } 
             }
 
         }
-#if 0
+#endif 
+#if 1
         //recv response
         timeout.tv_sec = 10;
         timeout.tv_usec = 0;
+        FD_ZERO(&read_set);
+        FD_SET(sock_fd, &read_set);
+
+
         ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
         if(ret < 0) {
             printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
