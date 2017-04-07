@@ -23,7 +23,7 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 
-#define PORT 8000
+#define PORT 8080
 
 int main()
 {
@@ -61,6 +61,8 @@ int main()
     FD_SET(sock_fd, &write_set);
     while(1) {
         //recv form client
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
         ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
         if(ret < 0) {
             printf("[%s] -- [%d] --select failed\r\n", __FUNCTION__, __LINE__);
@@ -81,7 +83,7 @@ int main()
                 printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
             }
         }
-
+#if 0
         //response to client
         timeout.tv_sec = 10;
         timeout.tv_usec = 0;
@@ -107,6 +109,6 @@ int main()
             }
 
         }
-
+#endif 
     }
 }

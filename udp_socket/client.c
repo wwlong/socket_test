@@ -21,7 +21,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-#define PORT 8000
+#define PORT 8080
 #define IPADDR "192.168.3.215"
 int main()
 {
@@ -77,7 +77,7 @@ int main()
             }
 
         }
-
+#if 0
         //recv response
         timeout.tv_sec = 10;
         timeout.tv_usec = 0;
@@ -101,5 +101,6 @@ int main()
                 printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
             }
         }
+#endif 
     }
 }
