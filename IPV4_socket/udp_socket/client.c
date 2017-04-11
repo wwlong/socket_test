@@ -1,21 +1,15 @@
 /**********************************************************
  *   Author        :     wangwenlong
- *   Last modified :     2017-04-06 10:22
- *   Filename      :     DNS_TEST.c
- *   Description   :     测试DNS
+ *   Last modified :     2017-04-07 11:19
+ *   Filename      :     client.c
+ *   Description   :     
  * *******************************************************/
-/* *******************************************************
- *  向google的DNS64发起DNS请求
- *  1.  本地为IPV4环境下请求
- *  2.  本地为IPV6环境下请求
- *  解析返回的IP地址
- * *******************************************************/
-
 /*******************************************************
  *  UDP client
  *  向服务器请求数据
  *  接收来自服务器的响应
  * *****************************************************/
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -28,74 +22,7 @@
 #include <arpa/inet.h>
 
 #define PORT 8080
-#define IPADDR "2001:67c:27e4:15::6411"
-
-#ifndef DNS_P_DICTSIZE
-#define DNS_P_DICTSIZE	16
-#endif
-#if defined __GNUC__
-#define DNS_PRAGMA_EXTENSION __extension__
-#else
-#define DNS_PRAGMA_EXTENSION
-#endif
-
-struct dns_header {
-		unsigned qid:16;
-
-#if (defined BYTE_ORDER && BYTE_ORDER == BIG_ENDIAN) || (defined __sun && defined _BIG_ENDIAN)
-		unsigned qr:1;
-		unsigned opcode:4;
-		unsigned aa:1;
-		unsigned tc:1;
-		unsigned rd:1;
-
-		unsigned ra:1;
-		unsigned unused:3;
-		unsigned rcode:4;
-#else
-		unsigned rd:1;
-		unsigned tc:1;
-		unsigned aa:1;
-		unsigned opcode:4;
-		unsigned qr:1;
-
-		unsigned rcode:4;
-		unsigned unused:3;
-		unsigned ra:1;
-#endif
-
-		unsigned qdcount:16;
-		unsigned ancount:16;
-		unsigned nscount:16;
-		unsigned arcount:16;
-}; /* struct dns_header */
-struct dns_packet {
-	unsigned short dict[DNS_P_DICTSIZE];
-	struct dns_p_memo {
-		struct dns_s_memo {
-			unsigned short base, end;
-		} qd, an, ns, ar;
-
-		struct {
-			unsigned short p;
-			unsigned short maxudp;
-			unsigned ttl;
-		} opt;
-	} memo;
-
-	struct { struct dns_packet *cqe_next, *cqe_prev; } cqe;
-
-	size_t size, end;
-
-	int:16; /* tcp padding */
-
-	DNS_PRAGMA_EXTENSION union {
-		struct dns_header header;
-		unsigned char data[1];
-	};
-}; /* struct dns_packet */
-
-
+#define IPADDR "192.168.3.215"
 int main()
 {
     int sock_fd;
@@ -113,8 +40,8 @@ int main()
     } 
     //name it
     memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET6;
-    servaddr.sin_addr.s_addr = inet_addr6(IPADDR);
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = inet_addr(IPADDR);
     servaddr.sin_port = htons(PORT);
 
     fd_set write_set, read_set;
@@ -182,6 +109,5 @@ int main()
             }
         }
 #endif 
-
     }
 }
