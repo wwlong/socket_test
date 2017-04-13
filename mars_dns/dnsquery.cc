@@ -37,14 +37,6 @@
 #define NAME_SVR_LEN (40)
 
 
-#define SERVADDR "2001:67c:27e4:15::6411"   //dns64 srv 500ms
-//#define SERVADDR "2001:67c:27e4::64"   //dns64 srv 不通
-//#define SERVADDR "2001:67c:27e4:15::64"   //dns64 srv 1500ms
-//#define SERVADDR "2001:67c:27e4::46"   //dns64 srv 不通
-//#define SERVADDR "2001:67c:27e4:641::5bef:6015"  //dns64 srv不通
-
-#define MESSAGE "hi there"
-
 // Type field of Query and Answer
 #define T_A         1       /* host address */
 #define T_NS        2       /* authoritative server */
@@ -111,10 +103,10 @@ typedef struct {
 }
 
 //函数原型声明
-static void           ChangetoDnsNameFormat(unsigned char*, std::string);
+static void           ChangetoDnsNameFormat(unsigned char*, char *);
 static unsigned char* ReadName(unsigned char*, unsigned char*, int*);
 static void           GetHostDnsServerIP(std::vector<std::string>& _dns_servers);
-static void           PrepareDnsQueryPacket(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _qname, const std::string& _host);
+static void           PrepareDnsQueryPacket(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _qname, char* _host);
 static void           ReadRecvAnswer(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _reader, struct RES_RECORD* _answers);
 static int            RecvWithinTime(int _fd, char* _buf, size_t _buf_n, struct sockaddr* _addr, socklen_t* _len, unsigned int _sec, unsigned _usec);
 static void           FreeAll(struct RES_RECORD* _answers);
@@ -131,133 +123,7 @@ static bool           isValidIpAddress(const char* _ipaddress);
  *
  */
 int socket_gethostbyname(const char* _host, socket_ipinfo_t* _ipinfo, int _timeout /*ms*/, const char* _dnsserver) {
-  //
-    struct sockaddr_in6 v;
-    struct sockaddr_in6 server_addr;
-    int get_err;
-    int sockfd;
-    char buffer[1024];
-    char recv_buf[65536];
-    int srvlen = sizeof(server_addr);
-    int i ;
-    int ret;
-    memset(&v, 0, sizeof(v));
-    v.sin6_family = AF_INET6;
-    v.sin6_port = htons(DNS_PORT);
-    v.sin6_flowinfo = 0;
-    printf("[%s] -- [%d] ++\r\n", __FUNCTION__, __LINE__);
-    v.sin6_scope_id = if_nametoindex(SERVADDR);
-    socklen_t len = sizeof(v);
-    inet_pton(AF_INET6,SERVADDR,&v.sin6_addr.__in6_u);
-
-    sockfd = socket(v.sin6_family, SOCK_DGRAM, 0);
-    if(sockfd < 0)
-    {
-        perror("socket");
-        return 1;
-    }
-    struct DNS_HEADER *query;
-    memset(buffer, 0, sizeof(buffer));
-    query = (struct DNS_HEADER*)buffer;
-    query->id = rand()%65536;
-    query->rd = 1;
-    query->tc = 0;
-    query->aa = 0;
-    query->opcode = 0;
-    query->qr = 0;
-    query->rcode = 0;
-    query->z = 0;
-    query->ra = 0;
-    query->q_count = 0;
-    query->ans_count = 0;
-    query->auth_count = 0;
-    query->add_count = 0;
-
-   struct QUESTION*  qinfo = NULL;
-    char *qname = "www.google.com";
-    char *name = (char *)&buffer[sizeof(struct DNS_HEADER)];
-    memcpy(name, qname, strlen(qname));
-    
-    qinfo = (struct QUESTION*)(buffer + sizeof(struct DNS_HEADER) + strlen(qname));
-    qinfo->qtype = htons(0x1c);  //查询 ipv6 address
-    qinfo->qclass = htons(1);  // its internet
-    
-    struct timeval start,end;
-    gettimeofday(&start, NULL);
-    unsigned long send_packlen = sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1) + sizeof(struct QUESTION);
-
-    if(sendto(sockfd, buffer, send_packlen, 0, (struct sockaddr *)&v, len) < 0)
-    {
-        perror("sento failed");
-        exit(4);
-    }
-    memset(&server_addr, 0, sizeof(server_addr));
-    ret = recvfrom(sockfd, recv_buf, 1024, 0,
-                (struct sockaddr *)&server_addr,
-               (socklen_t*) &srvlen) ;
-    if(ret < 0) {
-        printf("[%s] -- [%d] -- recvfrom failed\r\n", __FUNCTION__, __LINE__);
-        return -1;
-    }
-    else {
-        const unsigned int BUF_LEN = 65536;
-        unsigned char send_buf[BUF_LEN] = {0};
-        unsigned char recv_buf[BUF_LEN] = {0};
-        struct DNS_HEADER* dns = (struct DNS_HEADER*)send_buf;
-
-        gettimeofday(&end, NULL);
-        unsigned char* reader = (unsigned char*)&recv_buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1) + sizeof(struct QUESTION)];
-        dns = (struct DNS_HEADER*)recv_buf;   // 指向recv_buf的header
-        struct RES_RECORD answers[SOCKET_MAX_IP_COUNT];  // the replies from the DNS server
-        memset(answers, 0, sizeof(RES_RECORD)*SOCKET_MAX_IP_COUNT);
-
-        ReadRecvAnswer(recv_buf, dns, reader, answers);
-
-        // 把查询到的IP放入返回参数_ipinfo结构体中
-        int answer_count = std::min(SOCKET_MAX_IP_COUNT, (int)ntohs(dns->ans_count));
-        _ipinfo->size = 0;
-         for (int i = 0; i < answer_count; ++i) {
-            if (0x1c == ntohs(answers[i].resource->type)) {  // IPv6 address
-                              //  answers[i].rdata;
-                    //char v6_ip[64] = {0};
-		//inet_ntop(AF_INET6, &v6_addr, v6_ip, sizeof(v6_ip));
-		//_nat64_v6_ip = std::string(v6_ip);
-              std::string v6_addr;
-              for(int p=0;p<16;p++)
-            {  printf("-----%02x-----\n",answers[i].rdata[p]);
-               //v6_addr+=atoi(answers[i].rdata[p];
-            }
-               // _ipinfo->v6_addr[_ipinfo->size].s6_addr = (*p);  // working without ntohl
-                _ipinfo->size++;
-            }
-        }
-
-
-        printf("dns time : %ld ms\r\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000);
-        //printf("buffer : %s\r\n", buffer);
-        printf("ret : %d\r\nbuffer : \r\n", ret);
-        for(i = 0;i < ret;i ++) {
-            printf("%02x", recv_buf[i]);
-            if((i + 1) % 8 == 0) {
-                printf("\r\n");
-            }
-        }
-        printf("\r\n");
-        printf("server_addr.sin6_port : %d\r\n", server_addr.sin6_port);
-        printf("server_addr.sin6_addr.s6_addr : ");
-        for(i = 0;i < 16;i ++) {
-            printf("%02x", server_addr.sin6_addr.s6_addr[i]);
-            if((i+1)%2 == 0) {
-                printf(":");
-            }
-        }
-        printf("\r\n");
-        printf("server_addr.sin6_scope_id : %d\r\n", server_addr.sin6_scope_id);
-    }
-
-    
-//
-#if 0
+ #if 1
     if (NULL == _host) return -1;
 
     if (NULL == _ipinfo) return -1;
@@ -270,7 +136,6 @@ int socket_gethostbyname(const char* _host, socket_ipinfo_t* _ipinfo, int _timeo
        
         dns_servers.push_back(_dnsserver);
     } else {
-       
         GetHostDnsServerIP(dns_servers);
     }
       int sockfd = socket(AF_INET6,SOCK_DGRAM,IPPROTO_UDP);
@@ -310,9 +175,8 @@ int socket_gethostbyname(const char* _host, socket_ipinfo_t* _ipinfo, int _timeo
         unsigned char recv_buf[BUF_LEN] = {0};
         struct DNS_HEADER* dns = (struct DNS_HEADER*)send_buf;
         unsigned char* qname = (unsigned char*)&send_buf[sizeof(struct DNS_HEADER)];
-        PrepareDnsQueryPacket(send_buf, dns, qname, _host);
+        PrepareDnsQueryPacket(send_buf, dns, qname, (char*)_host);
         unsigned long send_packlen = sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1) + sizeof(struct QUESTION);
-
    
      int sendfd = sendto(sockfd, (char*)send_buf, send_packlen, 0, (struct sockaddr*)&dest, sizeof(dest));
       printf("sendlen:%d\n",sendfd);
@@ -332,7 +196,7 @@ int socket_gethostbyname(const char* _host, socket_ipinfo_t* _ipinfo, int _timeo
             break;
         }
   
-    printf("recvPacketLen:%d\n",recvPacketLen);
+        printf("recvPacketLen:%d\n",recvPacketLen);
   
   
         // move ahead of the dns header and the query field
@@ -397,7 +261,7 @@ void FreeAll(struct RES_RECORD* _answers) {
 void ReadRecvAnswer(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _reader, struct RES_RECORD* _answers) {
     // reading answers
     int i, j, stop = 0;
-    int answer_count = std::min(SOCKET_MAX_IP_COUNT, (int)ntohs(_dns->ans_count));
+    int answer_count = min(SOCKET_MAX_IP_COUNT, (int)ntohs(_dns->ans_count));
 
     for (i = 0; i < answer_count; i++) {
         _answers[i].name = ReadName(_reader, _buf, &stop);
@@ -417,7 +281,10 @@ void ReadRecvAnswer(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char*
 
             for (j = 0 ; j < ntohs(_answers[i].resource->data_len) ; j++)
                 { _answers[i].rdata[j] = _reader[j];
-                  printf("%02x:",_reader[j]);
+                  printf("%02x",_reader[j]);
+                  if((j+1)%2 == 0 &&j <= 14) {
+                    printf(":");
+                  }
              }
               printf("\n");
             _answers[i].rdata[ntohs(_answers[i].resource->data_len)] = '\0';
@@ -496,12 +363,14 @@ unsigned char* ReadName(unsigned char* _reader, unsigned char* _buffer, int* _co
 }
 
 // this will convert www.google.com to 3www6google3com
-void ChangetoDnsNameFormat(unsigned char* _qname, std::string _hostname) {
+void ChangetoDnsNameFormat(unsigned char* _qname, char *_hostname) {
     int lock = 0 , i;
-    _hostname.append(".");
-    const char* host = _hostname.c_str();
-
-    for (i = 0; i < (int)strlen(host); i++) {
+    char host[1024];
+    memset(host, 0, sizeof(1024));
+    memcpy(host, _hostname, strlen((const char *)_hostname));
+    memcpy(host+strlen((const char *)_hostname), ".", 1);
+    printf("before : %s\r\n", host);
+    for (i = 0; i < (int)strlen((const char *)host); i++) {
         if (host[i] == '.') {
             *_qname++ = i - lock;
 
@@ -512,11 +381,12 @@ void ChangetoDnsNameFormat(unsigned char* _qname, std::string _hostname) {
             lock++;
         }
     }
-
     *_qname++ = '\0';
+
+    printf("after : %s\r\n", _qname);
 }
 
-void PrepareDnsQueryPacket(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _qname, const std::string& _host) {
+void PrepareDnsQueryPacket(unsigned char* _buf, struct DNS_HEADER* _dns, unsigned char* _qname, char * _host) {
     struct QUESTION*  qinfo = NULL;
     // Set the DNS structure to standard queries
     _dns->id = getpid();

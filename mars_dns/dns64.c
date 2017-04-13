@@ -95,7 +95,7 @@ int main(void)
         perror("socket");
         return 1;
     }
-    struct DNS_HEADER *query;
+    struct DNS_HEADER *query, answer;
     memset(buffer, 0, sizeof(buffer));
     query = (struct DNS_HEADER*)buffer;
     query->id = rand()%65536;
@@ -163,6 +163,9 @@ int main(void)
         }
         printf("\r\n");
         printf("server_addr.sin6_scope_id : %d\r\n", server_addr.sin6_scope_id);
+
+        //先解析header
+        
     }
 
     close(sockfd);

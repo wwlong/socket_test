@@ -1,0 +1,186 @@
+/**********************************************************
+ *   Author        :     wangwenlong
+ *   Last modified :     2017-04-07 11:19
+ *   Filename      :     client.c
+ *   Description   :     
+ * *******************************************************/
+/*******************************************************
+ *  UDP client
+ *  向服务器请求数据
+ *  接收来自服务器的响应
+ * *****************************************************/
+
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+#define PORT 53
+#define IPADDR "8.8.8.8"
+
+// DNS header structure
+#pragma pack(push, 1)
+struct DNS_HEADER {
+    unsigned    short id;           // identification number
+
+    unsigned    char rd     : 1;    // recursion desired
+    unsigned    char tc     : 1;    // truncated message
+    unsigned    char aa     : 1;    // authoritive answer
+    unsigned    char opcode : 4;    // purpose of message
+    unsigned    char qr     : 1;    // query/response flag
+
+    unsigned    char rcode  : 4;    // response code
+    unsigned    char cd     : 1;    // checking disabled
+    unsigned    char ad     : 1;    // authenticated data
+    unsigned    char z      : 1;    // its z! reserved
+    unsigned    char ra     : 1;    // recursion available
+
+    unsigned    short q_count;      // number of question entries
+    unsigned    short ans_count;    // number of answer entries
+    unsigned    short auth_count;   // number of authority entries
+    unsigned    short add_count;    // number of resource entries
+};
+
+// Constant sized fields of query structure
+struct QUESTION {
+    unsigned short qtype;
+    unsigned short qclass;
+};
+
+// Constant sized fields of the resource record structure
+struct  R_DATA {
+    unsigned short type;
+    unsigned short _class;
+    unsigned int   ttl;
+    unsigned short data_len;
+};
+#pragma pack(pop)
+
+// Pointers to resource record contents
+struct RES_RECORD {
+    unsigned char*  name;
+    struct R_DATA*  resource;
+    unsigned char*  rdata;
+};
+
+// Structure of a Query
+typedef struct {
+    unsigned char*       name;
+    struct QUESTION*     ques;
+} QUERY;
+
+int main()
+{
+    int sock_fd;
+    int sock_fd_recv;
+    struct sockaddr_in servaddr, recvfrom_addr;
+    char *message = "message from client";
+    char buffer[1024];
+    int buffer_len = 1024;
+    int length, recv_len;
+    char send_buf[65536];
+    char recv_buf[65536];
+    //socket
+    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(sock_fd < 0) {
+        printf("[%s] -- [%d] -- socket failed\r\n", __FUNCTION__, __LINE__);
+        return -1;
+    } 
+    //name it
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = inet_addr(IPADDR);
+    servaddr.sin_port = htons(PORT);
+
+    fd_set write_set, read_set;
+    struct timeval timeout;
+    int ret;
+    FD_ZERO(&write_set);
+    FD_SET(sock_fd, &write_set);
+
+//封装DNS query packet
+    struct DNS_HEADER *query, *answer;
+    memset(send_buf, 0, sizeof(send_buf));
+    query = (struct DNS_HEADER*)send_buf;
+    query->id = 1783;
+    query->rd = 1;
+    query->tc = 0;
+    query->aa = 0;
+    query->opcode = 0;
+    query->qr = 0;
+    query->rcode = 0;
+    query->z = 0;
+    query->ra = 0;
+    query->q_count = 0;
+    query->ans_count = 0;
+    query->auth_count = 0;
+    query->add_count = 0;
+    while(1) {
+#if 1
+
+        //send message
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        ret = select(sock_fd+1, NULL, &write_set, NULL, &timeout);
+        if(ret < 0) {
+            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+            return -1;
+        }
+        else if(ret == 0) {
+            printf("select timeout \r\n");
+        }
+        else {  //表示可以发送数据了
+            if(FD_ISSET(sock_fd, &write_set)) {
+                if(-1 == sendto(sock_fd, send_buf, sizeof(struct DNS_HEADER), 0, (struct sockaddr *)&servaddr, sizeof(servaddr))){
+                    if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
+                        printf("EINTR == errno || EINPROGRESS == errno || EAGAIN == errno\r\n");
+                        continue;
+                    }
+                    else {
+                        printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
+                    }
+                }
+                else {
+                    //send success
+                } 
+            }
+
+        }
+#endif 
+#if 1
+        //recv response
+        timeout.tv_sec = 10;
+        timeout.tv_usec = 0;
+        FD_ZERO(&read_set);
+        FD_SET(sock_fd, &read_set);
+
+
+        ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
+        if(ret < 0) {
+            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+            return -1;
+        }
+        else if(0 == ret) {
+            printf("recv select timeout\r\n"); 
+        }
+        else {
+            //recv from socket avaiable
+            memset(&recvfrom_addr, 0, sizeof(recvfrom_addr));
+            length = sizeof(recvfrom_addr);
+            memset(buffer, 0, sizeof(buffer));
+            recv_len = recvfrom(sock_fd, buffer, buffer_len, 0, (struct sockaddr *)&recvfrom_addr, (socklen_t *)&length);
+            if(recv_len > 0) {
+                printf("recvfrom IP : %s\r\n", inet_ntoa(recvfrom_addr.sin_addr));
+                printf("recvfrom PORT : %d\r\n", htons(recvfrom_addr.sin_port));
+                printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
+            }
+        }
+#endif 
+    }
+}

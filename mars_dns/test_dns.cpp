@@ -2,7 +2,7 @@
 int main()
 {
  struct socket_ipinfo_t *test_ipv6;
-  char host[64]="conn-policy.ictun.com";
+  char host[64]="www.baidu.com";
   //char dnsserver[64]="2001:67c:27e4::64";
   char dnsserver[64]="2001:67c:27e4:15::6411";
   char v6_ip[64] = {0};
