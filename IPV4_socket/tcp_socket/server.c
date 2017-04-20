@@ -20,6 +20,8 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #define PORT 8080
 
 void *connection_handler(void *socket_fd) 
@@ -115,7 +117,7 @@ int main()
 {
     int sock_fd, new_sock;
     struct sockaddr_in server, client;
-    
+    int32_t ret;
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(sock_fd < 0) {
         printf("[%s] -- [%d] -- socket create failed\r\n", __FUNCTION__, __LINE__);
@@ -126,11 +128,22 @@ int main()
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_family = AF_INET;
     server.sin_port = htons(PORT);
-    //bind 
+    //bind
+    int32_t opt = 1;
+    ret = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if(ret < 0) {
+        printf("setsockopt failed\r\n");
+    }
+ 
     if(bind(sock_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         printf("[%s] -- [%d] -- bind failed\r\n", __FUNCTION__, __LINE__);
         return -1;
     }
+//    ret = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+//    if(ret < 0) {
+//        printf("setsockopt failed\r\n");
+//    }
+
     //listen 
     listen(sock_fd, 10);
     //accept
@@ -139,6 +152,8 @@ int main()
     while((new_sock = accept(sock_fd, (struct sockaddr *)&client, (socklen_t *)&len)))
     {
         printf("accept a new  client\r\n");
+        printf("ip : %s\r\n", inet_ntoa(client.sin_addr));
+        printf("port : %d\r\n", htons(client.sin_port));
         pthread_t sniffer_thread;
         if(0 != pthread_create(&sniffer_thread, NULL, connection_handler, (void *)&new_sock)) {
             printf("[%s] -- [%d] -- pthread_create sniffer_thread failed\r\n", __FUNCTION__, __LINE__);
@@ -147,7 +162,7 @@ int main()
     }
     if(new_sock < 0) {
         printf("[%s] -- [%d] -- accept failed\r\n", __FUNCTION__, __LINE__);\
-        return -1;
+            return -1;
     } 
     return 0;
 }
