@@ -20,6 +20,11 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
+#define flag_dbg(fmt...)   \
+    do {\
+        printf("[%s] -- [%d]: ", __FUNCTION__, __LINE__);\
+        printf(fmt);\
+    }while(0)
 
 #define PORT 8080
 #define IPADDR "192.168.3.215"
@@ -54,28 +59,33 @@ int main()
         //send message
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
-        ret = select(sock_fd+1, NULL, &write_set, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return -1;
-        }
-        else if(ret == 0) {
-            printf("select timeout \r\n");
-        }
-        else {  //表示可以发送数据了
-            if(FD_ISSET(sock_fd, &write_set)) {
-                if(-1 == sendto(sock_fd, message, strlen(message), 0, (struct sockaddr *)&servaddr, sizeof(servaddr))){
-                    if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
-                        printf("EINTR == errno || EINPROGRESS == errno || EAGAIN == errno\r\n");
-                        continue;
+        while(1) {
+            ret = select(sock_fd+1, NULL, &write_set, NULL, &timeout);
+
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return -1;
+            }
+            else if(ret == 0) {
+                printf("select timeout \r\n");
+            }
+            else {  //表示可以发送数据了
+                if(FD_ISSET(sock_fd, &write_set)) {
+                    if(-1 == sendto(sock_fd, message, strlen(message), 0, (struct sockaddr *)&servaddr, sizeof(servaddr))){
+                        if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
+                            printf("EINTR == errno || EINPROGRESS == errno || EAGAIN == errno\r\n");
+                            continue;
+                        }
+                        else {
+                            printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
+                        }
                     }
                     else {
-                        printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
-                    }
+                        break;
+                        //send success
+                    } 
                 }
-                else {
-                    //send success
-                } 
+
             }
 
         }
@@ -87,26 +97,38 @@ int main()
         FD_ZERO(&read_set);
         FD_SET(sock_fd, &read_set);
 
-
-        ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return -1;
-        }
-        else if(0 == ret) {
-            printf("recv select timeout\r\n"); 
-        }
-        else {
-            //recv from socket avaiable
-            memset(&recvfrom_addr, 0, sizeof(recvfrom_addr));
-            length = sizeof(recvfrom_addr);
-            memset(buffer, 0, sizeof(buffer));
-            recv_len = recvfrom(sock_fd, buffer, buffer_len, 0, (struct sockaddr *)&recvfrom_addr, (socklen_t *)&length);
-            if(recv_len > 0) {
-                printf("recvfrom IP : %s\r\n", inet_ntoa(recvfrom_addr.sin_addr));
-                printf("recvfrom PORT : %d\r\n", htons(recvfrom_addr.sin_port));
-                printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
+        while(1) {
+            ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return -1;
             }
+            else if(0 == ret) {
+                printf("recv select timeout\r\n"); 
+            }
+            else {
+                //recv from socket avaiable
+                memset(&recvfrom_addr, 0, sizeof(recvfrom_addr));
+                length = sizeof(recvfrom_addr);
+                memset(buffer, 0, sizeof(buffer));
+                recv_len = recvfrom(sock_fd, buffer, buffer_len, 0, (struct sockaddr *)&recvfrom_addr, (socklen_t *)&length);
+                if(recv_len >= 0) {
+                    printf("recvfrom IP : %s\r\n", inet_ntoa(recvfrom_addr.sin_addr));
+                    printf("recvfrom PORT : %d\r\n", htons(recvfrom_addr.sin_port));
+                    printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
+                }
+                else {
+                    flag_dbg("errno : %d -- %s\r\n", errno, strerror(errno));
+                    if(errno == EINTR || errno == EINPROGRESS || errno == EWOULDBLOCK || errno == EAGAIN) {
+                        continue;
+                    }
+                    else {
+                        flag_dbg("sednto failed\r\n");
+                        break;
+                    }
+                }
+            }
+
         }
 #endif 
     }

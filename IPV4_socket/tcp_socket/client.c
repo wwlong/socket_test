@@ -166,8 +166,6 @@ int main()
     fd_set write_set,read_set;
     struct timeval timeout;
     char *send_str = "hello,I am client";
-    timeout.tv_sec = 100;
-    timeout.tv_usec = 0;
     while(1) {
         sleep(1);
         //先写
@@ -175,6 +173,8 @@ int main()
         //write data to socket
         FD_ZERO(&write_set);
         FD_SET(sock_fd, &write_set);
+        timeout.tv_sec = 100;
+        timeout.tv_usec = 0;
 
         while(1) {
             printf("[%s] -- [%d] -+++++\r\n", __FUNCTION__, __LINE__);
@@ -186,6 +186,7 @@ int main()
             }
             else if(ret == 0) {
                 printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+                break;
             }
             else {
                 printf("send data to server\r\n");
@@ -215,6 +216,9 @@ int main()
         } 
 
 #if 1
+        timeout.tv_sec = 100;
+        timeout.tv_usec = 0;
+
         //再读
         FD_ZERO(&read_set);
         FD_SET(sock_fd , &read_set);
@@ -227,6 +231,7 @@ int main()
             }
             else if(ret == 0) {
                 printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+                break;
             }
             else {
                 printf("data from server is avaiable now\r\n");

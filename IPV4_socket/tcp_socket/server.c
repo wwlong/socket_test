@@ -55,9 +55,12 @@ void *connection_handler(void *socket_fd)
     FD_SET(sock_fd, &write_set);
 
     while(1) {
-        sleep(1);
         //read data from socket
+        timeout.tv_sec = 10;
+        timeout.tv_usec = 0;
+
         while(1) {
+
             ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
             flag_dbg("timeout.tv_sec : %ld\r\ntimeut.tv_usec : %ld\r\n", timeout.tv_sec ,timeout.tv_usec);
 
@@ -67,6 +70,7 @@ void *connection_handler(void *socket_fd)
             }
             else if(ret == 0) {
                 printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+                break;
             }
             else {
                 printf("data from client is avaiable now\r\n");
@@ -89,7 +93,7 @@ void *connection_handler(void *socket_fd)
                     }
                     else if(recv_len >= 1){
                         printf("recv data :data_len : %d\r\n", recv_len);
-                        //fwrite(buffer, recv_len, 1, fp);
+                        fwrite(buffer, recv_len, 1, fp);
                         break;
                     }
                     else {
@@ -102,6 +106,8 @@ void *connection_handler(void *socket_fd)
         }
 #if 1
         //write data to socket
+        timeout.tv_sec = 10;
+        timeout.tv_usec = 0;
         while(1) {
             ret = select(sock_fd + 1, NULL, &write_set, NULL, &timeout);
             if(ret < 0) {
@@ -110,6 +116,7 @@ void *connection_handler(void *socket_fd)
             }
             else if(ret == 0) {
                 printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+                break;
             }
             else {
                 printf("write to client \r\n");
@@ -158,6 +165,12 @@ int main()
         printf("setsockopt failed\r\n");
     }
  
+    opt = 1;
+    ret = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+    if(ret < 0) {
+        printf("setsockopt failed\r\n");
+    }
+
     if(bind(sock_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         printf("[%s] -- [%d] -- bind failed\r\n", __FUNCTION__, __LINE__);
         return -1;
