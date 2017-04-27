@@ -16,6 +16,12 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#define flag_dbg(fmt...)   \
+    do {\
+        printf("[%s] -- [%d]: ", __FUNCTION__, __LINE__);\
+        printf(fmt);\
+    }while(0)
+
 //#define PORT 8080
 #define SRV_IP "192.168.3.215"
 //#define SRV_IP "192.168.2.48"
@@ -106,7 +112,7 @@ int test_base_api() {
         }
         else if(0 == ret ){
             printf("dana_tcp_connect select timeout\r\n");
-            break;
+            //break;
         }
         else {
             //select success 
@@ -119,7 +125,7 @@ int test_base_api() {
                 printf("dana_tcp_connect connect_error: %d %s\r\n", connect_error, strerror(connect_error));
                 printf("dana_tcp_connect errno: %d %s\r\n", errno, strerror(errno));
                 if(EINTR == connect_error || ETIMEDOUT == connect_error) {
-                    continue;
+                    //continue;
                 }
             }
             else {
@@ -132,8 +138,8 @@ int test_base_api() {
 
 int main()
 {
-test_base_api();
-while(1);
+    //test_base_api();
+    //while(1);
     int sock_fd;
     struct sockaddr_in server;
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -154,88 +160,97 @@ while(1);
 
     //使用select实现非阻塞socket
     int ret;
-    int recv_len;
+    int recv_len, send_len;
     char buffer[1024];
     int buffer_len = 1024;
     fd_set write_set,read_set;
     struct timeval timeout;
     char *send_str = "hello,I am client";
+    timeout.tv_sec = 100;
+    timeout.tv_usec = 0;
     while(1) {
+        sleep(1);
+        //先写
         //read data from socket
-#if 1
-        FD_ZERO(&read_set);
-        FD_SET(sock_fd , &read_set);
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return -1;
-        }
-        else if(ret == 0) {
-            printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
-        }
-        else {
-            printf("data from server is avaiable now\r\n");
-            //开始recv from server
-            while(1) {
-                if(FD_ISSET(sock_fd, &read_set)) {
-                    memset(buffer, 0, sizeof(buffer));
-                    recv_len = recv(sock_fd, buffer, 3, 0);
-                    if(-1 == recv_len && (EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                        printf("data not recv all : %s\r\n",buffer);
-                        memset(buffer, 0, sizeof(buffer));
-                        continue;
-                    }
-                    else if(recv_len >= 1){
-                        printf("recv data : %s\r\ndata_len : %d\r\n", buffer, recv_len);
-                        memset(buffer, 0, sizeof(buffer));
-                        if((EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                            printf("(EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)\r\n");
-                        }
-                        //perror("error\r\n");
-                        break;
-                    }
-                    else {
-                        printf("[%s] -- [%d] -- recv failed\r\n", __FUNCTION__, __LINE__);
-                        break;
-                    }
-                }
-            }
-        }
-
-#endif 
         //write data to socket
         FD_ZERO(&write_set);
         FD_SET(sock_fd, &write_set);
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        ret = select(sock_fd + 1, NULL, &write_set, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return -1;
-        }
-        else if(ret == 0) {
-            printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
-        }
-        else {
-            printf("send data to server\r\n");
-            //开始recv from server
-            while(1) {
+
+        while(1) {
+            printf("[%s] -- [%d] -+++++\r\n", __FUNCTION__, __LINE__);
+            ret = select(sock_fd + 1, NULL, &write_set, NULL, &timeout);
+            flag_dbg("timeout.tv_sec : %ld\r\ntimeut.tv_usec : %ld\r\n", timeout.tv_sec ,timeout.tv_usec);
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return -1;
+            }
+            else if(ret == 0) {
+                printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+            }
+            else {
+                printf("send data to server\r\n");
+                //开始recv from server
                 if(FD_ISSET(sock_fd, &write_set)) {
-                    recv_len = send(sock_fd, send_str, strlen(send_str), 0);
-                    if(-1 == recv_len && (EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                        continue;
-                    }
-                    else if(recv_len >= 1){
-                        break;
+                    send_len = send(sock_fd, send_str, strlen(send_str), 0);
+                    flag_dbg("errno : %d -- %s -- send_len : %d\r\n", errno, strerror(errno), send_len);
+                    if(send_len == -1) {
+                        if(EINTR == errno || EINPROGRESS == errno || EAGAIN == errno || EWOULDBLOCK == errno) {
+                            continue;
+                        }
+                        else {
+                            flag_dbg("send failed\r\n");
+                            break;
+                        }
                     }
                     else {
-                        printf("[%s] -- [%d] -- send failed\r\n", __FUNCTION__, __LINE__);
+                        flag_dbg("send succcess : %d\r\n", send_len);
+                        break;
+                    }
+                }
+                else {
+                    flag_dbg("FD_ISSET error\r\n");
+                    break;
+                }
+            }
+        } 
+
+#if 1
+        //再读
+        FD_ZERO(&read_set);
+        FD_SET(sock_fd , &read_set);
+        while(1) {
+            ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
+            flag_dbg("timeout.tv_sec : %ld\r\ntimeut.tv_usec : %ld\r\n", timeout.tv_sec ,timeout.tv_usec);
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return -1;
+            }
+            else if(ret == 0) {
+                printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+            }
+            else {
+                printf("data from server is avaiable now\r\n");
+                //开始recv from server
+                if(FD_ISSET(sock_fd, &read_set)) {
+                    memset(buffer, 0, sizeof(buffer));
+                    recv_len = recv(sock_fd, buffer, 1024, 0);
+                    flag_dbg("errno : %d -- %s\r\n", errno, strerror(errno));
+                    if(-1 == recv_len) {
+                        if(EINTR == errno || EINPROGRESS == errno || EAGAIN == errno || EWOULDBLOCK == errno) {
+                            continue;
+                        }
+                        else {
+                            flag_dbg("recv failed\r\n");
+                            break;
+                        }
+                    }
+                    else {
+                        flag_dbg("recv success : %d\r\n", recv_len);
                         break;
                     }
                 }
             }
+#endif 
         }
-    } 
+    }
 }

@@ -23,84 +23,73 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #define PORT 8080
+#define BUFFER_LEN 65536
+#define flag_dbg(fmt...)   \
+    do {\
+        printf("[%s] -- [%d]: ", __FUNCTION__, __LINE__);\
+        printf(fmt);\
+    }while(0)
 
 void *connection_handler(void *socket_fd) 
 {
     pthread_detach(pthread_self());
     int ret;
     int recv_len;
-    char buffer[1024];
-    int buffer_len = 1024;
+    int send_len;
+    char buffer[BUFFER_LEN];
+    int buffer_len = BUFFER_LEN;
     fd_set write_set,read_set;
     struct timeval timeout;
     char *send_str = "hello,I am server";
     int sock_fd = *(int *)socket_fd;
+    FILE *fp = fopen("test_video.264", "w+");
+    if(NULL == fp) {
+        printf("fopen failed\r\n");
+        return NULL;
+    }
+    timeout.tv_sec = 100;
+    timeout.tv_usec = 0;
+    FD_ZERO(&read_set);
+    FD_SET(sock_fd , &read_set);
+    FD_ZERO(&write_set);
+    FD_SET(sock_fd, &write_set);
+
     while(1) {
+        sleep(1);
         //read data from socket
-        FD_ZERO(&read_set);
-        FD_SET(sock_fd , &read_set);
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return NULL;
-        }
-        else if(ret == 0) {
-            printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
-        }
-        else {
-            printf("data from client is avaiable now\r\n");
-            //开始recv from server
-            while(1) {
+        while(1) {
+            ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
+            flag_dbg("timeout.tv_sec : %ld\r\ntimeut.tv_usec : %ld\r\n", timeout.tv_sec ,timeout.tv_usec);
+
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return NULL;
+            }
+            else if(ret == 0) {
+                printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+            }
+            else {
+                printf("data from client is avaiable now\r\n");
+                //开始recv from server
                 if(FD_ISSET(sock_fd, &read_set)) {
-                    memset(buffer, 0, strlen(buffer));
-                    recv_len = recv(sock_fd, buffer, 17, 0);
-                    if(-1 == recv_len && (EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                        printf("data not recv all : %s\r\n",buffer);
-                        continue;
-                    }
-                    else if(recv_len >= 1){
-                        printf("recv data : %s\r\ndata_len : %d\r\n", buffer, recv_len);
-                        if((EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                            printf("(EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)\r\n");
+                    memset(buffer, 0, BUFFER_LEN);
+                    flag_dbg("errno : %d -- %s\r\n", errno, strerror(errno));
+                    recv_len = recv(sock_fd, buffer, BUFFER_LEN, 0);
+                    printf("recv_len : %d\r\n", recv_len);
+                    if(-1 == recv_len) {
+                        if(EAGAIN == errno || EWOULDBLOCK == errno) {
+                            printf("data not recv all \r\n");
+                            continue;
                         }
-                        break;
-                    }
-                    else {
-                        printf("[%s] -- [%d] -- recv failed\r\n", __FUNCTION__, __LINE__);
-                        break;
-                    }
-                }
-            }
-        }
-#if 0
-        //write data to socket
-        FD_ZERO(&write_set);
-        FD_SET(sock_fd, &write_set);
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        ret = select(sock_fd + 1, NULL, &write_set, NULL, &timeout);
-        if(ret < 0) {
-            printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
-            return NULL;
-        }
-        else if(ret == 0) {
-            printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
-        }
-        else {
-            printf("write to client \r\n");
-            //开始recv from server
-            while(1) {
-                if(FD_ISSET(sock_fd, &write_set)) {
-                    recv_len = send(sock_fd, send_str, strlen(send_str), 0);
-                    if(-1 == recv_len && (EINTR == errno || EINPROGRESS == errno || EAGAIN == errno)) {
-                        printf("data not recv all : %s\r\nrecv_len : %lu\r\n",buffer, strlen(buffer));
-                        memset(buffer, 0, strlen(buffer));
-                        continue;
+                        else {
+                            flag_dbg("recv failed\r\n");
+                            break;
+                            //return ;
+                        }
                     }
                     else if(recv_len >= 1){
-                        printf("recv data : %s\r\ndata_len : %d\r\n", buffer, recv_len);
+                        printf("recv data :data_len : %d\r\n", recv_len);
+                        //fwrite(buffer, recv_len, 1, fp);
                         break;
                     }
                     else {
@@ -109,6 +98,40 @@ void *connection_handler(void *socket_fd)
                     }
                 }
             }
+
+        }
+#if 1
+        //write data to socket
+        while(1) {
+            ret = select(sock_fd + 1, NULL, &write_set, NULL, &timeout);
+            if(ret < 0) {
+                printf("[%s] -- [%d] -- select failed\r\n", __FUNCTION__, __LINE__);
+                return NULL;
+            }
+            else if(ret == 0) {
+                printf("[%s] -- [%d] -- select timeout\r\n", __FUNCTION__, __LINE__);
+            }
+            else {
+                printf("write to client \r\n");
+                //开始recv from server
+                if(FD_ISSET(sock_fd, &write_set)) {
+                    send_len = send(sock_fd, send_str, strlen(send_str) , 0);
+                    flag_dbg("send_len : %d errno : %d\r\n", send_len, errno);
+                    if(-1 == send_len) {
+                        if(EAGAIN == errno || EWOULDBLOCK == errno) {
+                            continue;
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    else {
+
+                        break;
+                    }
+                }
+            }
+
         }
 #endif 
     } 
