@@ -27,7 +27,7 @@
     }while(0)
 
 #define PORT 8080
-#define IPADDR "192.168.3.215"
+#define IPADDR "127.0.0.1"
 int main()
 {
     int sock_fd;
@@ -81,6 +81,7 @@ int main()
                         }
                     }
                     else {
+                        printf("clinet send success\n");
                         break;
                         //send success
                     } 
@@ -92,7 +93,7 @@ int main()
 #endif 
 #if 1
         //recv response
-        timeout.tv_sec = 10;
+        timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         FD_ZERO(&read_set);
         FD_SET(sock_fd, &read_set);
@@ -104,7 +105,8 @@ int main()
                 return -1;
             }
             else if(0 == ret) {
-                printf("recv select timeout\r\n"); 
+                printf("recv select timeout\r\n");
+                break;
             }
             else {
                 //recv from socket avaiable

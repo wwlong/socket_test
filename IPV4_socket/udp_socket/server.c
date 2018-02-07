@@ -59,15 +59,16 @@ int main()
         return -1;
     }
 
-    //select
-    FD_ZERO(&read_set);
-    FD_SET(sock_fd, &read_set);
     while(1) {
         //recv form client
 #if 1
         printf("circle \r\n");
-        timeout.tv_sec = 10;
+        timeout.tv_sec = 1;
         timeout.tv_usec = 0;
+
+        //select
+        FD_ZERO(&read_set);
+        FD_SET(sock_fd, &read_set);
         while(1) {
             ret = select(sock_fd + 1, &read_set, NULL, NULL, &timeout);
             if(ret < 0) {
@@ -75,7 +76,7 @@ int main()
                 return -1;
             }
             else if(ret == 0) {
-                printf("select timeout\r\n");
+                printf("recv select timeout\r\n");
                 break;
             }
             else {
@@ -88,6 +89,48 @@ int main()
                     printf("recvfrom IP : %s\r\n", inet_ntoa(client_addr.sin_addr));
                     printf("recvfrom PORT : %d\r\n", htons(client_addr.sin_port));
                     printf("message len : %d\r\nmessage : %s\r\n", recv_len, buffer);
+#if 1
+                    //response to client
+                    timeout.tv_sec = 10;
+                    timeout.tv_usec = 0;
+                    FD_ZERO(&write_set);
+                    FD_SET(sock_fd, &write_set);
+                    while(1) {
+                        ret = select(sock_fd+1, NULL, &write_set, NULL, &timeout);
+                        if(ret < 0) {
+                            printf("[%s] -- [%d] -- server sendto select failed\r\n", __FUNCTION__, __LINE__);
+                            return -1;
+                        }
+                        else if(ret == 0) {
+                            printf("send select timeout \r\n");
+                            break;
+                        }
+                        else {  //表示可以发送数据了
+                            if(FD_ISSET(sock_fd, &write_set)) {
+                                if(-1 == sendto(sock_fd, message, strlen(message), 0, (struct sockaddr *)&client_addr, sizeof(client_addr))){
+                                    if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
+                                        printf("EINTR == errno || EINPROGRESS == errno || EAGAIN == errno\r\n");
+                                        continue;
+                                    }
+                                    else {
+                                        printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
+                                        break;
+                                    }
+                                }
+                                else {
+                                    printf("send success %d -- %s\n", errno, strerror(errno));
+                                    break;
+                                }
+                            }
+                            else {
+                                flag_dbg("FD_ISSET error\r\n");
+                                break;
+                            }
+
+                        }
+
+                    }
+#endif
                 }
                 else {
                     if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
@@ -102,44 +145,5 @@ int main()
 
         }
 #endif
-#if 1
-        //response to client
-        timeout.tv_sec = 10;
-        timeout.tv_usec = 0;
-        FD_ZERO(&write_set);
-        FD_SET(sock_fd, &write_set);
-        while(1) {
-            ret = select(sock_fd+1, NULL, &write_set, NULL, &timeout);
-            if(ret < 0) {
-                printf("[%s] -- [%d] -- server sendto select failed\r\n", __FUNCTION__, __LINE__);
-                return -1;
-            }
-            else if(ret == 0) {
-                printf("select timeout \r\n");
-                break;
-            }
-            else {  //表示可以发送数据了
-                if(FD_ISSET(sock_fd, &write_set)) {
-                    if(-1 == sendto(sock_fd, message, strlen(message), 0, (struct sockaddr *)&client_addr, sizeof(client_addr))){
-                        if( EINTR == errno || EINPROGRESS == errno || EAGAIN == errno ) {
-                            printf("EINTR == errno || EINPROGRESS == errno || EAGAIN == errno\r\n");
-                            continue;
-                        }
-                        else {
-                            printf("[%s] -- [%d] -- sendto failed\r\n", __FUNCTION__, __LINE__);
-                            break;
-                        }
-                    } 
-                }
-                else {
-                    flag_dbg("FD_ISSET error\r\n");
-                    break;
-                }
-
-            }
-
-        }
-#endif 
-
     }
 }
